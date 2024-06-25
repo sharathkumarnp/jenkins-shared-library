@@ -1,67 +1,56 @@
-// ~/jenkins-shared-library/vars/publish_to_system.groovy
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
+
 def call(Map buildDetails) {
     def apiUrl = 'https://cts.jfrog.io/jenkins'
-    def params = extractParameters(buildDetails)
+    def params = buildDetails.parameters
     def redactedParams = redactPasswords(params)
-    def payload = createPayload(buildDetails.jobName, buildDetails.buildNumber, redactedParams, buildDetails.parameters)
-
-    println "Payload to be sent: ${JsonOutput.prettyPrint(JsonOutput.toJson(payload))}"
+    def payload = createPayload(buildDetails.jobName, currUserId, buildDetails.buildNumber, redactedParams)
 
     sendUpdateToAPI(apiUrl, payload)
 }
 
-def extractParameters(Map buildDetails) {
-    // Extract parameters and other relevant job details
-    return buildDetails.getOrDefault('parameters', []).collect { param ->
-        [key: param.name, value: param.value]
-    }
-}
-
-def redactPasswords(List params) {
-    // Redact sensitive data such as passwords
-    params.each { param ->
-        if (param.key.toLowerCase().contains('password') || param.key.toLowerCase().contains('secret')) {
-            param.value = 'REDACTED'
+def redactPasswords(Map params) {
+    params.each { key, value ->
+        if (key.toLowerCase().contains('password') || key.toLowerCase().contains('secret')) {
+            params[key] = 'REDACTED'
         }
     }
     return params
 }
 
-def createPayload(String jobName, String buildNumber, List params, List parameters) {
-    // Construct the payload including job parameters and potentially other metadata
+def createPayload(String jobName, String buildNumber, Map params) {
+    // Construct the payload
     return [
-        change: [
-            after: params
-        ],
-        metadata: [
-            timestamp: new Date(),
-            user: 'sharathappu09@gmail.com',  // You might want to dynamically fetch the user
-            jobName: jobName,
-            buildNumber: buildNumber,
-            entity: parameters
-        ]
+            change: [
+                    after: params.collect { key, value -> [key: key, value: value] }
+            ],
+            metadata: [
+                    timestamp: new Date(),
+                    jobName: jobName,
+                    buildNumber: buildNumber,
+                    entity: params.collect { key, value -> [key: key, value: value] }
+            ]
     ]
 }
 
 def sendUpdateToAPI(String apiUrl, Map payload) {
-    // Convert payload to JSON
+
+    // Converting payload to JSON
     def jsonPayload = JsonOutput.toJson(payload)
-    println "Sending payload to API: ${jsonPayload}"
     def response = httpRequest(
-        httpMode: 'POST',
-        url: apiUrl,
-        contentType: 'APPLICATION_JSON',
-        requestBody: jsonPayload
+            httpMode: 'POST',
+            url: apiUrl,
+            contentType: 'APPLICATION_JSON',
+            requestBody: jsonPayload
     )
 
-    // Check response status and log
+    // response status
+
     if (response.status == 200) {
         println "API call was successful: ${response.content}"
     } else {
         println "API call failed: ${response.status} - ${response.content}"
     }
 }
-
