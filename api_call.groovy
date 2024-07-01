@@ -3,7 +3,7 @@ import groovy.json.JsonSlurper
 
 
 def call(Map buildDetails) {
-    def apiUrl = '<API_ENDPOINT>'
+    def apiUrl = '<api-endpoint>'
     def params = buildDetails.parameters
     def redactedParams = redactPasswords(params)
     def payload = createPayload(buildDetails.jobName, currUserId, buildDetails.buildNumber, redactedParams)
@@ -20,17 +20,19 @@ def redactPasswords(Map params) {
     return params
 }
 
-def createPayload(String jobName, String buildNumber, Map params) {
+def createPayload(String jobName, String buildNumber, currUserId, Map params) {
     // Construct the payload
+    def PNameKey = params.keySet().find { key -> key.toLowerCase().startsWith('param-name') } // If you want to fetch any particular param to pass to entity
+    def PName = PNameKey ? params[PNameKey] : 'UNKNOWN'
+
     return [
-            change: [
-                    after: params.collect { key, value -> [key: key, value: value] }
-            ],
+            change: params,
             metadata: [
                     timestamp: new Date(),
+                    user: currUserId,
                     jobName: jobName,
                     buildNumber: buildNumber,
-                    entity: params.collect { key, value -> [key: key, value: value] }
+                    entity: PName
             ]
     ]
 }
